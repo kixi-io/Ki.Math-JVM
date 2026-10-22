@@ -9,7 +9,7 @@ Includes `../Ki.Core-JVM` (the only main dependency) and `../Ki.KD-JVM`, `../Ki.
 - The bag is `MathBag` (a class with a public no-argument constructor, listed in `META-INF/services/io.kixi.types.TypeBag`); nothing registers it. Tests reach it with `TypeBags.byName("math")`.
 - A type's stored encoding and sort key never change for a version that was released: bump `MathBag.VERSION` and keep decoding every older version. `LabScale.code` and `Fit.Model.code` are stored.
 - `Fit`'s literal writes every number exactly (a double's shortest decimal, shifted to a readable unit for x values); `parse(format(f)) == f` must hold. Keep `FitType.samples` covering both models, every lab dimension and the far-outside-the-ladder case.
-- Statistics are decimal (`Stats.series` holds BigDecimals), so exact inputs give exact answers; nothing is rounded for display. `zprime` matches KQ's built-in value for value.
+- Statistics are decimal (`Stats.series` holds BigDecimals), so exact inputs give exact answers; nothing is rounded for display. `zprime` matches KQ's built-in (RevDB `Aggregates.zprime`) to the last bit, both sides read in one unit; change the two together.
 - Function and constant names are global across bags (and KQ's built-ins win in KQ): check the other bags before adding one.
 - `BagCorpus.kt` (the corpus round trip) is shared with Ki.Sci-JVM's tests; keep the copies alike.
 

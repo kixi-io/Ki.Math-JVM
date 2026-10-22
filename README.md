@@ -38,7 +38,8 @@ from p in plates select p.barcode, linfit(p.std, p.abs).r2
   `.fit(4pl x=M a=… b=… c=52.3nM d=… r2=… n=8 from=1.5625nM to=400nM)` with every
   number exact, stored by RevDB and compared by its parameters.
 - **Statistics** (`Stats`): `mean`, `sd`, `cv`, `sem`, `median`, `quantile`
-  (type 7), `blankSubtract`, `zprime` (as KQ's) and `round` (half away from zero,
+  (type 7), `blankSubtract`, `zprime` (KQ's, to the last bit; both sides read in one
+  unit) and `round` (half away from zero,
   as Excel's ROUND). Sample deviations (n − 1). Decimal arithmetic, so exact
   inputs give exact answers; nothing is rounded for display.
 - **Units**: series of concentrations, volumes, masses, amounts and molar masses

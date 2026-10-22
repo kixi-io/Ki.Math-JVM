@@ -1,0 +1,246 @@
+package io.kixi.math
+
+import io.kixi.Grid
+import io.kixi.uom.Quantity
+import java.math.BigDecimal
+import java.math.RoundingMode
+import kotlin.math.sqrt
+import io.kixi.uom.Unit as KiUnit
+
+/**
+ * Lab statistics: the functions RevGrid formulas and KS scripts use on replicate
+ * wells and standard series.
+ *
+ * ## Values in
+ *
+ * A series is a list (or any iterable, or a grid's cells) of plain numbers, or of
+ * quantities of one lab dimension (concentration, volume, mass, amount, molar
+ * mass), or text that reads as either. One value counts as a series of one. With
+ * quantities, every value is converted to the dimension's lab base unit (M, ℓ, g,
+ * mol, Da), and a bare number among them is taken as already in that unit. A
+ * missing value (nil) is an error, not skipped.
+ *
+ * ## Values out
+ *
+ * Not rounded for display. The arithmetic is decimal (a value is taken at its
+ * shortest decimal, `0.412`, not the binary double nearest it), so exact inputs give
+ * exact answers: the mean of `0.412`, `0.398` and `0.405` is `0.405`, and the median
+ * of `1nM` and `3nM` is `2nM`. A statistic of quantities comes back as a quantity in
+ * a readable unit (`52.3nM`, not `5.23E-8M`) to a double's 16 significant digits;
+ * one of plain numbers as a Double. Rounding for display is the display's job, or
+ * [round]'s.
+ *
+ * Deviations are sample statistics (n − 1): replicate wells are a sample.
+ */
+public object Stats {
+
+    /** Arithmetic mean: `mean([1, 2, 4])` is 2.333…; quantities keep their dimension. */
+    @JvmStatic
+    public fun mean(values: Any?): Any {
+        val s = series(values, "values")
+        return out(meanOf(s.values), s.scale)
+    }
+
+    /** Sample standard deviation (n − 1). Needs at least two values. */
+    @JvmStatic
+    public fun sd(values: Any?): Any {
+        val s = series(values, "values")
+        if (s.values.size < 2) throw MathException("sd needs at least 2 values (${s.values.size} given)")
+        return out(sdOf(s.values), s.scale)
+    }
+
+    /** Coefficient of variation, sd over |mean|, as a percent. */
+    @JvmStatic
+    public fun cv(values: Any?): Double {
+        val s = series(values, "values")
+        if (s.values.size < 2) throw MathException("cv needs at least 2 values (${s.values.size} given)")
+        val mean = meanOf(s.values)
+        if (mean.signum() == 0) throw MathException("cv is undefined when the mean is zero")
+        return sdOf(s.values).divide(mean.abs(), MC).multiply(HUNDRED).toDouble()
+    }
+
+    /** Standard error of the mean, sd / √n. Needs at least two values. */
+    @JvmStatic
+    public fun sem(values: Any?): Any {
+        val s = series(values, "values")
+        if (s.values.size < 2) throw MathException("sem needs at least 2 values (${s.values.size} given)")
+        return out(sdOf(s.values).divide(BigDecimal(s.values.size).sqrt(MC), MC), s.scale)
+    }
+
+    /** The middle value (the mean of the two middle values for an even count). */
+    @JvmStatic
+    public fun median(values: Any?): Any = quantile(values, 0.5)
+
+    /**
+     * The [p] quantile, 0 ≤ p ≤ 1, by linear interpolation between order statistics
+     * (Hyndman and Fan's type 7: R's default, numpy's, Excel's QUANTILE.INC).
+     */
+    @JvmStatic
+    public fun quantile(values: Any?, p: Any?): Any {
+        val q = number(p, "p")
+        if (q.isNaN() || q < 0.0 || q > 1.0) throw MathException("p must be between 0 and 1, not $q")
+        val s = series(values, "values")
+        val sorted = s.values.sortedArray()
+        val h = BigDecimal(sorted.size - 1).multiply(decimalOf(q))
+        val lo = h.setScale(0, RoundingMode.FLOOR).intValueExact()
+        val hi = h.setScale(0, RoundingMode.CEILING).intValueExact()
+        val v = sorted[lo] + (h - BigDecimal(lo)).multiply(sorted[hi] - sorted[lo], MC)
+        return out(v, s.scale)
+    }
+
+    /**
+     * [values] minus a blank: one reading, or a series whose mean is used. Returns
+     * the corrected list, ready to feed a fit.
+     */
+    @JvmStatic
+    public fun blankSubtract(values: Any?, blank: Any?): List<Any> {
+        val s = series(values, "values")
+        val b = meanOf(series(blank, "blank", forced = s.scale).values)
+        return s.values.map { out(it - b, s.scale) }
+    }
+
+    /**
+     * Z-factor of a plate (Zhang 1999), `1 − 3(σp + σn) / |μp − μn|`, over the
+     * positive and negative control wells: KQ's `zprime`, value for value. Nil
+     * values are skipped, as KQ skips them; fewer than two values on either side
+     * give nil.
+     */
+    @JvmStatic
+    public fun zprime(positive: Any?, negative: Any?): Double? {
+        val p = controls(positive, "zprime")
+        val n = controls(negative, "zprime")
+        if (p.size < 2 || n.size < 2) return null
+        return 1.0 - 3.0 * (sampleSd(p) + sampleSd(n)) / Math.abs(p.average() - n.average())
+    }
+
+    /**
+     * [x] rounded to [places] decimal places (negative places round to tens,
+     * hundreds, …), half away from zero as Excel's ROUND does, not half to even as
+     * Kotlin's `round` does: lab users compare with spreadsheets. The result keeps
+     * [x]'s kind: a Double stays a Double, a quantity keeps its unit.
+     */
+    @JvmStatic
+    public fun round(x: Any?, places: Any? = 0): Any {
+        val n = when (places) {
+            null -> 0
+            is Int, is Long, is Short, is Byte -> (places as Number).toLong()
+            is Number -> places.toDouble().let { if (it % 1.0 != 0.0) throw MathException("places must be a whole number, not $it"); it.toLong() }
+            else -> throw MathException("places must be a whole number")
+        }
+        if (n !in -1000..1000) throw MathException("places must be between -1000 and 1000, not $n")
+        return roundValue(x, n.toInt())
+    }
+
+    private fun roundValue(x: Any?, places: Int): Any = when (x) {
+        is Quantity<*> -> {
+            @Suppress("UNCHECKED_CAST")
+            Quantity(roundValue(x.value, places) as Number, x.unit as KiUnit)
+        }
+        is BigDecimal -> x.setScale(places, RoundingMode.HALF_UP).let { if (places < 0) it.setScale(0) else it }
+        is Double -> { if (!x.isFinite()) x else decimalOf(x).setScale(places, RoundingMode.HALF_UP).toDouble() }
+        is Float -> { if (!x.isFinite()) x else decimalOf(x).setScale(places, RoundingMode.HALF_UP).toFloat() }
+        is Int -> if (places >= 0) x else BigDecimal(x).setScale(places, RoundingMode.HALF_UP).intValueExactOr { throw MathException("round($x, $places) does not fit an Int") }
+        is Long -> if (places >= 0) x else BigDecimal(x).setScale(places, RoundingMode.HALF_UP).longValueExactOr { throw MathException("round($x, $places) does not fit a Long") }
+        is Number -> roundValue(x.toDouble(), places)
+        is String -> roundValue(x.trim().toDoubleOrNull() ?: throw MathException("'$x' is not a number"), places)
+        null -> throw MathException("Missing value to round")
+        else -> throw MathException("Expected a number or a quantity to round, got ${x::class.simpleName}")
+    }
+
+    private inline fun BigDecimal.intValueExactOr(fail: () -> Nothing): Int = try { intValueExact() } catch (e: ArithmeticException) { fail() }
+    private inline fun BigDecimal.longValueExactOr(fail: () -> Nothing): Long = try { longValueExact() } catch (e: ArithmeticException) { fail() }
+
+    // ------------------------------------------------------------------ series
+
+    /** A resolved series: base-unit decimals, and the scale results go back through (null for plain numbers). */
+    internal class Series(val values: Array<BigDecimal>, val scale: LabScale?) {
+        val doubles: DoubleArray get() = DoubleArray(values.size) { values[it].toDouble() }
+    }
+
+    /**
+     * [x] as a [Series]. [forced] pins the scale (a blank is read in its values'
+     * dimension); otherwise the series' first quantity picks it.
+     */
+    internal fun series(x: Any?, what: String, forced: LabScale? = null): Series {
+        val items = itemsOf(x) ?: if (x == null) throw MathException("Missing $what") else listOf(x)
+        if (items.isEmpty()) throw MathException("$what is empty")
+        val firstQuantity = items.firstOrNull { it is Quantity<*> } as Quantity<*>?
+        val scale = forced ?: firstQuantity?.let { LabScale.of(it) }
+        val out = Array(items.size) { i ->
+            val item = items[i]
+            if ((item is Double && !item.isFinite()) || (item is Float && !item.isFinite())) {
+                throw MathException("$what holds a value that is not finite ($item)")
+            }
+            when {
+                item == null -> throw MathException("Missing value in $what")
+                scale != null -> scale.toBaseDecimal(item)
+                item is Number -> decimalOf(item)
+                item is String -> item.trim().toBigDecimalOrNull() ?: throw MathException("'$item' in $what is not a number")
+                else -> throw MathException("Expected numbers in $what, got ${item::class.simpleName}")
+            }
+        }
+        return Series(out, scale)
+    }
+
+    /** The items of a list, another iterable, an array or a grid (its cells, row by row); null for anything else. */
+    internal fun itemsOf(x: Any?): List<Any?>? = when (x) {
+        is List<*> -> x
+        is Grid<*> -> x.toList()
+        is Iterable<*> -> x.toList()
+        is Array<*> -> x.toList()
+        is DoubleArray -> x.toList()
+        is IntArray -> x.toList()
+        is LongArray -> x.toList()
+        else -> null
+    }
+
+    /**
+     * Control wells for [zprime], as KQ reads them: nil skipped; plain numbers, or
+     * quantities of one dimension in its base unit.
+     */
+    private fun controls(x: Any?, what: String): DoubleArray {
+        val items = (itemsOf(x) ?: listOfNotNull(x)).filterNotNull()
+        if (items.all { it is Number }) return DoubleArray(items.size) { (items[it] as Number).toDouble() }
+        if (items.all { it is Quantity<*> }) {
+            val qs = items.map { it as Quantity<*> }
+            val first = qs[0].unit
+            if (qs.any { it.unit.dimension != first.dimension } || first is io.kixi.uom.Currency) {
+                throw MathException("$what over quantities of different dimensions or currencies (${qs.map { it.unit.symbol }.distinct().joinToString()})")
+            }
+            val base = first.baseUnit
+            return DoubleArray(qs.size) { qs[it].unit.convertValue(decimalOf(qs[it].value), base).toDouble() }
+        }
+        throw MathException("$what needs numbers or quantities of one dimension")
+    }
+
+    internal fun sampleSd(values: DoubleArray): Double {
+        val mean = values.average()
+        var ss = 0.0
+        for (v in values) ss += (v - mean) * (v - mean)
+        return sqrt(ss / (values.size - 1))
+    }
+
+    private val MC = java.math.MathContext.DECIMAL128
+    private val HUNDRED = BigDecimal(100)
+
+    private fun meanOf(values: Array<BigDecimal>): BigDecimal =
+        values.fold(BigDecimal.ZERO) { a, b -> a + b }.divide(BigDecimal(values.size), MC)
+
+    private fun sdOf(values: Array<BigDecimal>): BigDecimal {
+        val mean = meanOf(values)
+        val ss = values.fold(BigDecimal.ZERO) { a, b -> val d = b - mean; a + d.multiply(d) }
+        return ss.divide(BigDecimal(values.size - 1), MC).sqrt(MC)
+    }
+
+    /** A base-unit result going out: a readable quantity, or the Double. */
+    internal fun out(base: BigDecimal, scale: LabScale?): Any = scale?.fromBase(base) ?: base.toDouble()
+
+    /** A bare number argument. */
+    internal fun number(x: Any?, what: String): Double = when (x) {
+        is Number -> x.toDouble()
+        is String -> x.trim().toDoubleOrNull() ?: throw MathException("'$x' is not a number ($what)")
+        is Quantity<*> -> throw MathException("Expected a plain number for $what, got ${x.unit.symbol}")
+        null -> throw MathException("Missing $what")
+        else -> throw MathException("Expected a number for $what")
+    }
+}

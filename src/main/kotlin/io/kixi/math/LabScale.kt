@@ -49,7 +49,7 @@ internal enum class LabScale(
     fun toBaseDecimal(x: Any?): BigDecimal {
         val q: Quantity<*> = when (x) {
             is Quantity<*> -> x
-            is Number -> return decimalOf(x)
+            is Number -> return finiteDecimal(x)
             is String -> {
                 x.trim().toBigDecimalOrNull()?.let { return it }
                 try { Quantity.parse(x.trim()) } catch (e: Exception) {
@@ -62,7 +62,12 @@ internal enum class LabScale(
         if (!dimension.isInstance(q.unit)) {
             throw MathException("Expected a $what, got ${q.unit.symbol} (${q.unit.dimensionName})")
         }
-        return q.unit.convertValue(decimalOf(q.value), base)
+        return q.unit.convertValue(finiteDecimal(q.value), base)
+    }
+
+    private fun finiteDecimal(n: Number): BigDecimal {
+        if ((n is Double && !n.isFinite()) || (n is Float && !n.isFinite())) throw MathException("Expected a finite $what, got $n")
+        return decimalOf(n)
     }
 
     /** The ladder unit [base] reads in: the largest it reaches 1 in, the smallest when none; zero reads in the base unit. */

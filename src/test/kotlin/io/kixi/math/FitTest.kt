@@ -50,6 +50,12 @@ class FitTest : FunSpec({
             shouldThrow<MathException> { Fit.linfit(listOf(1, 2, 3), listOf(1.0, 2.0)) }
             shouldThrow<MathException> { Fit.linfit(listOf(1, 2), listOf(q("1g"), q("2g"))) }.message shouldContain "plain readings"
         }
+        test("a reading or an x that is not finite is an error, not NaN") {
+            val plain = Fit.linfit(listOf(1, 2), listOf(1.0, 2.0))
+            shouldThrow<MathException> { plain.interp(Double.NaN) }
+            shouldThrow<MathException> { plain.predict(Double.NaN) }
+            shouldThrow<MathException> { Fit.linfit(listOf(q("1nM"), q("2nM")), listOf(1.0, 2.0)).predict(Double.NaN) }
+        }
         test("a plain-number fit refuses a quantity x") {
             shouldThrow<MathException> { Fit.linfit(listOf(1, 2), listOf(1.0, 2.0)).predict(q("1nM")) }
         }

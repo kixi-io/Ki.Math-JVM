@@ -133,6 +133,7 @@ public class Fit internal constructor(
             x == null -> throw MathException("Missing x")
             else -> throw MathException("Expected a number for x, got ${x::class.simpleName}")
         }
+        if (!base.isFinite()) throw MathException("x must be a finite number, not $base")
         val y = predictBase(base)
         if (!y.isFinite()) throw MathException("The prediction is not finite")
         return y
@@ -165,6 +166,7 @@ public class Fit internal constructor(
      */
     public fun interp(reading: Any?): Any {
         val y = Stats.number(reading, "reading")
+        if (!y.isFinite()) throw MathException("The reading must be a finite number, not $y")
         val x = interpBase(y)
         // Round-trip float error at the exact endpoints is not extrapolation; a millionth of the span absorbs it.
         val tol = 1e-6 * (xMaxBase - xMinBase)

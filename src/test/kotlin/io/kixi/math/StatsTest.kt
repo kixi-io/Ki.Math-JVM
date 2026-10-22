@@ -61,12 +61,14 @@ class StatsTest : FunSpec({
         Stats.blankSubtract(listOf(0.512, 0.731), 0.047).map { d(it) }.zip(listOf(0.465, 0.684)).forEach { (a, b) -> a shouldBe (b plusOrMinus 1e-12) }
         Stats.blankSubtract(listOf(0.512, 0.731), listOf(0.045, 0.052)).map { d(it) }.zip(listOf(0.4635, 0.6825)).forEach { (a, b) -> a shouldBe (b plusOrMinus 1e-12) }
         Stats.blankSubtract(listOf(q("5nM"), q("7nM")), q("1nM")).map { it.toString() } shouldBe listOf("4nM", "6nM")
+        shouldThrow<MathException> { Stats.blankSubtract(listOf(0.5, 0.6), q("0.1nM")) }.message shouldContain "plain numbers"
     }
 
     test("zprime agrees with KQ's: nil skipped, too few values give nil") {
         Stats.zprime(listOf(100, 102, 98, 101), listOf(10, 12, 9, 11))!! shouldBe (0.899761 plusOrMinus 1e-6)
         Stats.zprime(listOf(100, null, 102), listOf(10, 12)) shouldBe Stats.zprime(listOf(100, 102), listOf(10, 12))
         Stats.zprime(listOf(1), listOf(1, 2)) shouldBe null
+        // Both sides in one unit, though the positives mix nM and µM and the negatives do not.
         Stats.zprime(listOf(q("100nM"), q("0.102µM")), listOf(q("10nM"), q("12nM")))!! shouldBe
                 (Stats.zprime(listOf(100, 102), listOf(10, 12))!! plusOrMinus 1e-9)
     }
@@ -101,6 +103,29 @@ class StatsTest : FunSpec({
             shouldThrow<MathException> { Stats.mean(null) }
         }
         test("a value that is not finite") { shouldThrow<MathException> { Stats.mean(listOf(1.0, Double.NaN)) } }
+    }
+
+    test("text that reads as a quantity picks the dimension") {
+        Stats.mean(listOf("1.5nM", "2.5nM")).toString() shouldBe "2nM"
+        Stats.mean(listOf("1.5", "2.5")) shouldBe 2.0
+    }
+
+    test("zprime over quantities agrees with KQ's built-in to the last bit") {
+        val r = kotlin.random.Random(11)
+        val units = listOf("nM", "µM", "mM")
+        io.kixi.revdb.RevDB.inMemory().use { db ->
+            db.writeBlocking { createCollection("rev:collection plates") }
+            repeat(200) { i ->
+                // Units drawn per plate and per well, so some sides share one unit and some mix.
+                val plateUnit = units[r.nextInt(3)]
+                fun wells(base: Double) = List(4) { q("${"%.3f".format(java.util.Locale.ROOT, base + r.nextDouble() * 5)}${if (r.nextBoolean()) plateUnit else units[r.nextInt(3)]}") }
+                val p = wells(100.0)
+                val n = wells(10.0)
+                db.writeBlocking { insert("plates", io.kixi.kd.Tag("p").apply { setAttribute("i", value = i); setAttribute("pos", value = p); setAttribute("neg", value = n) }) }
+                val kq = db.kq("from p in plates where p.i == $i select zprime(p.pos, p.neg)").single().values[0]
+                Stats.zprime(p, n) shouldBe kq
+            }
+        }
     }
 
     test("one value is a series of one; grids and arrays are series") {

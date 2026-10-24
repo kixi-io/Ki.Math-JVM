@@ -19,7 +19,7 @@ import java.util.Arrays
 /*
  * The corpus round trip (Ki type bags design, 7, TB2): every sample value of a
  * bag's types goes through every layer that stores or reads it, and comes back
- * equal. A copy of this file is in each bag's tests (Ki.Math, Ki.Sci); keep them
+ * equal. A copy of this file is in each bag's tests (Ki.Math, Ki.Sci, Ki.Bio); keep them
  * alike.
  */
 

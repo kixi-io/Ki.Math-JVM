@@ -11,7 +11,7 @@ Includes `../Ki.Core-JVM` (the only main dependency) and `../Ki.KD-JVM`, `../Ki.
 - `Fit`'s literal writes every number exactly (a double's shortest decimal, shifted to a readable unit for x values); `parse(format(f)) == f` must hold. Keep `FitType.samples` covering both models, every lab dimension and the far-outside-the-ladder case.
 - Statistics are decimal (`Stats.series` holds BigDecimals), so exact inputs give exact answers; nothing is rounded for display. `zprime` matches KQ's built-in (RevDB `Aggregates.zprime`) to the last bit, both sides read in one unit; change the two together.
 - Function and constant names are global across bags (and KQ's built-ins win in KQ): check the other bags before adding one.
-- `BagCorpus.kt` (the corpus round trip) is shared with Ki.Sci-JVM's tests; keep the copies alike.
+- `BagCorpus.kt` (the corpus round trip) is shared with Ki.Sci-JVM's and Ki.Bio-JVM's tests; keep the copies alike.
 
 ## Working agreements
 - Commit straight to `master`; never create a branch unless Dan asks. Code and docs in separate commits, author `dleuck <dan@kixi.io>`. Don't publish or change the version without asking.

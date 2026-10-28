@@ -133,4 +133,34 @@ class StatsTest : FunSpec({
         Stats.mean(doubleArrayOf(1.0, 3.0)) shouldBe 2.0
         Stats.mean(io.kixi.Grid.fromRows(listOf(listOf(1, 3)))) shouldBe 2.0
     }
+
+    // ---------------------------------------------------------------- measures (TB7)
+
+    fun m(text: String) = io.kixi.Measure.parse(text)
+
+    test("meanSd and meanSem: the mean with its spread as a measure") {
+        val reps = listOf(0.412, 0.398, 0.405)
+        val sd = Stats.meanSd(reps)
+        d(sd.value) shouldBe (0.405 plusOrMinus 1e-12)
+        d(sd.uncertainty) shouldBe (0.007 plusOrMinus 1e-12)
+        val sem = Stats.meanSem(reps)
+        d(sem.uncertainty) shouldBe (0.007 / Math.sqrt(3.0) plusOrMinus 1e-12)
+        // quantities: both numbers in one readable unit
+        val c = Stats.meanSd(listOf(q("1mM"), q("2mM"), q("3mM")))
+        c.toString() shouldBe "2±1mM"
+        Stats.meanSd(listOf(q("1µM"), q("500nM"))).unit!!.symbol shouldBe "nM"
+        shouldThrow<MathException> { Stats.meanSd(listOf(1.0)) }.message!! shouldContain "at least 2"
+        shouldThrow<MathException> { Stats.meanSd(listOf(m("1±0.1"), m("2±0.1"))) }.message!! shouldContain "propagates"
+    }
+
+    test("mean of measures propagates as KQ's mean does; weightedMean weights by 1/σ²") {
+        val xs = listOf(m("10±3"), m("20±4"))
+        Stats.mean(xs) shouldBe io.kixi.Measure.mean(xs)
+        Stats.mean(xs) shouldBe m("15.0±2.5")
+        val w = Stats.weightedMean(listOf(m("10.0±1.0"), m("12.0±2.0")))
+        d(w.value) shouldBe (10.4 plusOrMinus 1e-12)
+        d(w.uncertainty) shouldBe (Math.sqrt(0.8) plusOrMinus 1e-12)
+        shouldThrow<MathException> { Stats.weightedMean(listOf(1.0, 2.0)) }.message!! shouldContain "measures"
+        shouldThrow<MathException> { Stats.weightedMean(listOf(m("1±0"), m("2±1"))) }
+    }
 })

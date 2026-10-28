@@ -51,6 +51,11 @@ class MathBagTest : FunSpec({
             db.kq("from c in curves select linfit(c.xs, c.ys).slope").single().values[0] shouldBe 2.0
             db.kq("from c in curves select round(mean(c.ys), 1)").single().values[0] shouldBe 6.0
             db.kq("from c in curves select median(c.xs)").single().values[0] shouldBe 2.5
+            // a measure from a bag function, stored and read back as one
+            val ms = db.kq("from c in curves select meanSd(c.ys)").single().values[0]
+            ms shouldBe Stats.meanSd(listOf(3.0, 5.0, 7.0, 9.0))
+            db.writeBlocking { insert("curves", io.kixi.kd.Tag("c").apply { setAttribute("name", value = "ms"); setAttribute("m", value = ms) }) }
+            db.kq("from c in curves where c.name == \"ms\" select c.m.uncertainty").single().values[0] shouldBe (ms as io.kixi.Measure).uncertainty
             val fit = Fit.linfit(listOf(1, 2, 3, 4), listOf(3.0, 5.0, 7.0, 9.0))
             db.writeBlocking { insert("curves", io.kixi.kd.Tag("c").apply { setAttribute("name", value = "stored"); setAttribute("fit", value = fit) }) }
             db.kq("from c in curves where c.name == \"stored\" select c.fit.predict(2), c.fit.interp(9.0)").single().values shouldBe listOf(5.0, 4.0)

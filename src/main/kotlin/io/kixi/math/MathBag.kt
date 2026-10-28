@@ -15,7 +15,8 @@ import kotlin.reflect.KClass
  *
  * - Type `Fit`, literal `.fit(…)`: a standard curve, linear or 4PL ([Fit]).
  * - Functions `mean`, `sd`, `cv`, `sem`, `median`, `quantile`, `blankSubtract`,
- *   `zprime`, `round` ([Stats]); `linfit`, `fit4pl`, `interp`, `predict` ([Fit]).
+ *   `zprime`, `round`, and the measures `meanSd`, `meanSem`, `weightedMean`
+ *   ([Stats]); `linfit`, `fit4pl`, `interp`, `predict` ([Fit]).
  *
  * The bag is found on the classpath through `META-INF/services`; nothing registers
  * it. Its Kotlin API is [Stats] and [Fit]. In KS, `use ki.math` binds the bag
@@ -42,6 +43,9 @@ public class MathBag : TypeBag {
             BagFunction("sd", 1..1) { a -> Stats.sd(a[0]) },
             BagFunction("cv", 1..1, "Double") { a -> Stats.cv(a[0]) },
             BagFunction("sem", 1..1) { a -> Stats.sem(a[0]) },
+            BagFunction("meanSd", 1..1, "Measure") { a -> Stats.meanSd(a[0]) },
+            BagFunction("meanSem", 1..1, "Measure") { a -> Stats.meanSem(a[0]) },
+            BagFunction("weightedMean", 1..1, "Measure") { a -> Stats.weightedMean(a[0]) },
             BagFunction("median", 1..1) { a -> Stats.median(a[0]) },
             BagFunction("quantile", 2..2) { a -> Stats.quantile(a[0], a[1]) },
             BagFunction("blankSubtract", 2..2, "List") { a -> Stats.blankSubtract(a[0], a[1]) },

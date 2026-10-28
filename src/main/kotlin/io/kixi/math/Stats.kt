@@ -34,9 +34,16 @@ import io.kixi.uom.Unit as KiUnit
  */
 public object Stats {
 
-    /** Arithmetic mean: `mean([1, 2, 4])` is 2.333…; quantities keep their dimension. */
+    /**
+     * Arithmetic mean: `mean([1, 2, 4])` is 2.333…; quantities keep their dimension.
+     * Of measures (`0.512±0.008`), the mean with its propagated uncertainty, as KQ's
+     * `mean` gives it (Ki.Core's `Measure.mean`).
+     */
     @JvmStatic
     public fun mean(values: Any?): Any {
+        measuresIn(values)?.let { ms ->
+            return try { io.kixi.Measure.mean(ms)!! } catch (e: IllegalArgumentException) { throw MathException("mean: ${e.message}") }
+        }
         val s = series(values, "values")
         return out(meanOf(s.values), s.scale)
     }
@@ -65,6 +72,54 @@ public object Stats {
         val s = series(values, "values")
         if (s.values.size < 2) throw MathException("sem needs at least 2 values (${s.values.size} given)")
         return out(sdOf(s.values).divide(BigDecimal(s.values.size).sqrt(MC), MC), s.scale)
+    }
+
+    /**
+     * The mean with the sample standard deviation as its uncertainty, a measure:
+     * `meanSd([0.412, 0.398, 0.405])` is `0.405±0.007`. Quantities come back in a
+     * readable unit, both numbers in it. Needs at least two values.
+     */
+    @JvmStatic
+    public fun meanSd(values: Any?): io.kixi.Measure = withSpread(values, "meanSd", sem = false)
+
+    /**
+     * The mean with its standard error (sd / √n) as its uncertainty, a measure: how
+     * well the replicates pin the mean down. Needs at least two values.
+     */
+    @JvmStatic
+    public fun meanSem(values: Any?): io.kixi.Measure = withSpread(values, "meanSem", sem = true)
+
+    /**
+     * The inverse-variance weighted mean of measures of one quantity (each weighted by
+     * 1/σ²), with uncertainty 1/√Σ(1/σ²): the best estimate from independent
+     * measurements of different precision. Ki.Core's `Measure.weightedMean`.
+     */
+    @JvmStatic
+    public fun weightedMean(values: Any?): io.kixi.Measure {
+        val items = itemsOf(values) ?: if (values == null) throw MathException("Missing measures") else listOf(values)
+        if (items.isEmpty()) throw MathException("weightedMean needs at least one measure")
+        val ms = items.map { it as? io.kixi.Measure ?: throw MathException("weightedMean takes measures (0.512±0.008), not ${it?.let { x -> x::class.simpleName } ?: "nil"}") }
+        return try { io.kixi.Measure.weightedMean(ms)!! } catch (e: IllegalArgumentException) { throw MathException("weightedMean: ${e.message}") }
+    }
+
+    private fun withSpread(values: Any?, what: String, sem: Boolean): io.kixi.Measure {
+        if (measuresIn(values) != null) throw MathException("$what takes plain values; mean(...) of measures propagates their uncertainty")
+        val s = series(values, "values")
+        if (s.values.size < 2) throw MathException("$what needs at least 2 values (${s.values.size} given)")
+        val mean = meanOf(s.values)
+        var spread = sdOf(s.values)
+        if (sem) spread = spread.divide(BigDecimal(s.values.size).sqrt(MC), MC)
+        val scale = s.scale ?: return io.kixi.Measure.of(mean.toDouble(), spread.toDouble())
+        val q = scale.fromBase(mean)
+        val sigma = spread.multiply(scale.base.factor).divide(q.unit.factor, MC).round(java.math.MathContext.DECIMAL64).stripTrailingZerosPlain()
+        return io.kixi.Measure.of(q, Quantity(sigma, q.unit))
+    }
+
+    /** The items when any is a measure, else null. */
+    private fun measuresIn(values: Any?): List<Any>? {
+        val items = itemsOf(values) ?: listOfNotNull(values)
+        if (items.none { it is io.kixi.Measure }) return null
+        return items.map { it ?: throw MathException("Missing value among measures") }
     }
 
     /** The middle value (the mean of the two middle values for an even count). */

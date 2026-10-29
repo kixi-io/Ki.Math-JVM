@@ -6,7 +6,7 @@ The `math` type bag (Ki type bags design, sections 2 and 5.1; the design is in K
 Includes `../Ki.Core-JVM` (the only main dependency) and `../Ki.KD-JVM`, `../Ki.KS-JVM`, `../RevDB-JVM` (tests only). Ask before adding a dependency.
 
 ## Rules
-- The bag is `MathBag` (a class with a public no-argument constructor, listed in `META-INF/services/io.kixi.types.TypeBag`); nothing registers it. Tests reach it with `TypeBags.byName("math")`.
+- The bag is `MathBag` (a class with a public no-argument constructor, listed in `META-INF/services/io.kixi.types.TypeBag`); nothing registers it. Its manifest, `META-INF/ki/bags/io.kixi.math.MathBag.properties`, is what discovery reads instead of creating the bag (type bags design, 13): it says `preload=true`, and lists the bag's types, literals, functions, constants and members, so regenerate it with `TypeBags.manifestOf(bag, preload = true)` whenever a name changes (`BagCorpus` fails until it matches). Tests reach it with `TypeBags.byName("math")`.
 - A type's stored encoding and sort key never change for a version that was released: bump `MathBag.VERSION` and keep decoding every older version. `LabScale.code` and `Fit.Model.code` are stored.
 - `Fit`'s literal writes every number exactly (a double's shortest decimal, shifted to a readable unit for x values); `parse(format(f)) == f` must hold. Keep `FitType.samples` covering both models, every lab dimension and the far-outside-the-ladder case.
 - Statistics are decimal (`Stats.series` holds BigDecimals), so exact inputs give exact answers; nothing is rounded for display. `zprime` matches KQ's built-in (RevDB `Aggregates.zprime`) to the last bit, both sides read in one unit; change the two together.

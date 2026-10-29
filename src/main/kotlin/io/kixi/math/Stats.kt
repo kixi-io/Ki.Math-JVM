@@ -103,7 +103,11 @@ public object Stats {
     }
 
     private fun withSpread(values: Any?, what: String, sem: Boolean): io.kixi.Measure {
-        if (measuresIn(values) != null) throw MathException("$what takes plain values; mean(...) of measures propagates their uncertainty")
+        val measure = measuresIn(values)?.firstOrNull { it is io.kixi.Measure }
+        if (measure != null) throw MathException(
+            "$what needs plain readings, and these include a measure ($measure). For measures use mean(...), " +
+                "which carries their uncertainty, or weightedMean(...), which counts the most precise most"
+        )
         val s = series(values, "values")
         if (s.values.size < 2) throw MathException("$what needs at least 2 values (${s.values.size} given)")
         val mean = meanOf(s.values)

@@ -95,6 +95,10 @@ class TB7RecheckMathTest : FunSpec({
         for (bad in listOf(listOf(m("1±0.1"), 2.0), listOf(1.0), listOf(1.0, null), emptyList<Any>())) {
             try { val r = Stats.meanSd(bad); problems += "meanSd($bad) = $r" } catch (e: MathException) { } catch (e: Exception) { problems += "meanSd($bad): ${e::class.simpleName}" }
         }
+        // The refusal names the measure it found and the two functions that take measures.
+        val said = try { Stats.meanSem(listOf(0.4, m("4.2±0.25nM"))); "no error" } catch (e: MathException) { e.message ?: "" }
+        if (!said.startsWith("meanSem needs plain readings, and these include a measure (4.2±0.25nM)") ||
+            "mean(...)" !in said || "weightedMean(...)" !in said) problems += "meanSem's refusal of a measure: $said"
         val v = io.kixi.Vector.ofDoubles(1.0, 2.0, 4.0)
         val r = try { Stats.mean(v).toString() } catch (e: Exception) { "error: ${e.message}" }
         if (r.startsWith("error")) problems += "mean(.vec<Double> { 1 2 4 }): $r (KQ's mean(v) reads a vector's numbers)"

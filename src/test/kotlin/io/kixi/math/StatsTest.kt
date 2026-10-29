@@ -150,7 +150,7 @@ class StatsTest : FunSpec({
         c.toString() shouldBe "2±1mM"
         Stats.meanSd(listOf(q("1µM"), q("500nM"))).unit!!.symbol shouldBe "nM"
         shouldThrow<MathException> { Stats.meanSd(listOf(1.0)) }.message!! shouldContain "at least 2"
-        shouldThrow<MathException> { Stats.meanSd(listOf(m("1±0.1"), m("2±0.1"))) }.message!! shouldContain "propagates"
+        shouldThrow<MathException> { Stats.meanSd(listOf(m("1±0.1"), m("2±0.1"))) }.message!! shouldContain "carries their uncertainty"
     }
 
     test("mean of measures propagates as KQ's mean does; weightedMean weights by 1/σ²") {

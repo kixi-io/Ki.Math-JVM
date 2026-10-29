@@ -248,10 +248,11 @@ public object Stats {
         return Series(out, scale)
     }
 
-    /** The items of a list, another iterable, an array or a grid (its cells, row by row); null for anything else. */
+    /** The items of a list, another iterable, an array, a vector or a grid (its cells, row by row); null for anything else. */
     internal fun itemsOf(x: Any?): List<Any?>? = when (x) {
         is List<*> -> x
         is Grid<*> -> x.toList()
+        is io.kixi.Vector<*> -> x.toList()
         is Iterable<*> -> x.toList()
         is Array<*> -> x.toList()
         is DoubleArray -> x.toList()

@@ -38,6 +38,7 @@ internal fun ks(source: String, bind: Map<String, Any?> = emptyMap()): String {
 internal fun corpusProblems(bag: TypeBag): List<String> {
     val out = ArrayList<String>()
     out += TypeBags.check(bag)
+    out += TypeBags.checkManifest(bag)        // discovery reads the manifest instead of creating the bag (type bags design 13)
     for (t0 in bag.types) {
         val t = t0 as ValueType<Any>
         if (t.literals.isEmpty()) continue
